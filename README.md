@@ -16,3 +16,5 @@ inbounds:
   "xver": 0,
   "serverNames": ["node.example.com"]
 }
+
+Установка: bash <(curl -Ls https://raw.githubusercontent.com/radmir42/remna-selfsni/main/install.sh)
