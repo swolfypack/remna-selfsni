@@ -10,6 +10,14 @@ die()  { printf '\033[1;31m[ERROR]\033[0m %s\n' "$*" >&2; exit 1; }
 trap 'warn "Установка прервана: строка $LINENO, код завершения $?"' ERR
 
 [[ $EUID -eq 0 ]] || die 'Запустите скрипт от root: sudo bash install_remnawave_selfsteal.sh'
+
+# A process-substitution or piped installer can be truncated mid-here-document.
+# Require a complete on-disk script BEFORE any server modifications.
+SCRIPT_PATH="${BASH_SOURCE[0]}"
+[[ -f "$SCRIPT_PATH" && "$SCRIPT_PATH" != /dev/fd/* && "$SCRIPT_PATH" != /proc/self/fd/* ]] || \
+  die 'Скачайте полный .sh в файл и запускайте: sudo bash ./install_remnawave_selfsteal_v4.sh (не через bash <(curl ...)).'
+grep -qx '# END_OF_REMNAWAVE_SELFSTEAL_INSTALLER_V4' "$SCRIPT_PATH" || \
+  die 'Скрипт неполный (не найден финальный маркер). Перекачайте файл.'
 command -v apt-get >/dev/null || die 'Поддерживаются только Debian/Ubuntu (apt-get).'
 command -v systemctl >/dev/null || die 'Необходим systemd.'
 
@@ -46,7 +54,7 @@ read_value DOMAIN 'Домен Self-Steal SNI (A-запись указывает 
 DOMAIN="${DOMAIN,,}"
 [[ "$DOMAIN" =~ ^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$ ]] || die 'Укажите корректный домен, например: node.example.com'
 
-read_value EMAIL 'Email для Lets Encrypt' 'dolbaeb@gmail.com'
+EMAIL='dolbaeb@gmail.com' # acme.sh / Let's Encrypt: без интерактивного запроса
 [[ "$EMAIL" =~ ^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+$ ]] || die 'Некорректный email.'
 
 read_value NODE_PORT 'Порт управления Remnawave Node' '2222'
@@ -118,11 +126,3 @@ fi
 
 info '[3/6] Nginx с TLS-сайтом на 127.0.0.1:8443'
 apt-get install -y nginx-full
-install -d -m 700 "$CERT_DIR"
-# Cert files installed by acme.sh, not direct symlinks into its internal storage.
-touch "$CERT_DIR/key.pem" "$CERT_DIR/fullchain.pem"
-chmod 600 "$CERT_DIR/key.pem" "$CERT_DIR/fullchain.pem"
-
-install -d -m 755 /var/www/html
-backup_file "$HTML_FILE"
-cat > "$HTML_FILE" <<'HTML'
